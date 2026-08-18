@@ -1,0 +1,1 @@
+import{oa as o}from"./chunk-JGRYBTK6.js";import{c as u}from"./chunk-E75BRI7K.js";import{a as t}from"./chunk-RA2WU32H.js";function b(r){return new u(n=>o(r,e=>{n.next(e.docs.map(i=>t({id:i.id},i.data())))},e=>n.error(e)))}function m(r){return new u(n=>o(r,e=>{if(!e.exists()){n.next(void 0);return}n.next(t({id:e.id},e.data()))},e=>n.error(e)))}export{b as a,m as b};
