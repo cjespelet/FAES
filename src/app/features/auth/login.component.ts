@@ -33,7 +33,8 @@ import { catchError, take, timeout } from 'rxjs/operators';
       <mat-card class="login-card">
         <mat-card-header>
           <mat-card-title class="title">
-            <h1>⚽ FAES</h1>
+            <img src="logo-faes.png" alt="FAES FC" class="brand-logo" />
+            <h1>FAES</h1>
             <p>Gestión de Equipo de Fútbol</p>
           </mat-card-title>
         </mat-card-header>
@@ -145,6 +146,17 @@ import { catchError, take, timeout } from 'rxjs/operators';
     .title {
       text-align: center;
       width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+
+      .brand-logo {
+        width: 88px;
+        height: 88px;
+        object-fit: contain;
+        border-radius: 50%;
+        margin-bottom: 8px;
+      }
       
       h1 {
         font-size: 2.5rem;

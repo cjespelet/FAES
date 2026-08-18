@@ -29,7 +29,8 @@ import { AuthService } from '../../core/services/auth.service';
     <mat-sidenav-container class="sidenav-container">
       <mat-sidenav #drawer mode="side" opened class="sidenav">
         <div class="sidenav-header">
-          <h2>⚽ FAES</h2>
+          <img src="logo-faes.png" alt="FAES FC" class="brand-logo" />
+          <h2>FAES</h2>
         </div>
         
         <mat-nav-list>
@@ -113,10 +114,21 @@ import { AuthService } from '../../core/services/auth.service';
     }
 
     .sidenav-header {
-      padding: 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 16px 20px;
+      background: #111;
       color: white;
+      display: flex;
+      align-items: center;
+      gap: 12px;
       
+      .brand-logo {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+        border-radius: 50%;
+        background: #fff;
+      }
+
       h2 {
         margin: 0;
         font-size: 1.5rem;

@@ -34,6 +34,7 @@ import {
 } from '../../core/utils/stats.utils';
 import { formatMoney } from '../../core/utils/date.utils';
 import { exemptionLabel } from '../../core/utils/payment.utils';
+import { loadLogoDataUrl } from '../../core/utils/logo.utils';
 
 @Component({
   selector: 'app-reports',
@@ -378,18 +379,37 @@ export class ReportsComponent implements OnInit {
     }
   }
 
-  exportInitialPdf(): void {
+  private async addPdfHeader(
+    doc: jsPDF,
+    title: string,
+    lines: string[],
+    startY = 36
+  ): Promise<number> {
+    const logo = await loadLogoDataUrl();
+    const textX = logo ? 34 : 14;
+    if (logo) {
+      doc.addImage(logo, 'PNG', 14, 8, 18, 18);
+    }
+    doc.setFontSize(16);
+    doc.text(title, textX, 14);
+    doc.setFontSize(11);
+    lines.forEach((line, index) => {
+      doc.setFontSize(index === 0 ? 11 : 9);
+      doc.text(line, textX, 22 + index * 6);
+    });
+    return startY;
+  }
+
+  async exportInitialPdf(): Promise<void> {
     const tournament = this.selectedTournament;
     if (!tournament || this.schedule.length === 0) return;
 
     const teamName = this.team?.name ?? 'FAES';
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    doc.setFontSize(16);
-    doc.text(`${teamName} — Plan de pagos`, 14, 16);
-    doc.setFontSize(11);
-    doc.text(`${tournament.name} (${tournament.type} ${tournament.year})`, 14, 24);
-    doc.setFontSize(9);
-    doc.text('Enviar este PDF al grupo de WhatsApp de los jugadores', 14, 30);
+    const startY = await this.addPdfHeader(doc, `${teamName} — Plan de pagos`, [
+      `${tournament.name} (${tournament.type} ${tournament.year})`,
+      'Enviar este PDF al grupo de WhatsApp de los jugadores'
+    ]);
 
     const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro', 'Total'];
     const body = this.schedule.map(row => [
@@ -406,7 +426,7 @@ export class ReportsComponent implements OnInit {
     ]);
 
     autoTable(doc, {
-      startY: 36,
+      startY,
       head: [head],
       body,
       styles: { fontSize: 9, halign: 'center' },
@@ -438,19 +458,17 @@ export class ReportsComponent implements OnInit {
     XLSX.writeFile(wb, `plan-pagos-${tournament.name.replace(/\s+/g, '-').toLowerCase()}.xlsx`);
   }
 
-  exportStatusPdf(): void {
+  async exportStatusPdf(): Promise<void> {
     const tournament = this.selectedTournament;
     if (!tournament || this.statusRows.length === 0) return;
 
     const teamName = this.team?.name ?? 'FAES';
     const today = new Date().toLocaleDateString('es-AR');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    doc.setFontSize(16);
-    doc.text(`${teamName} — Estado de pagos`, 14, 16);
-    doc.setFontSize(11);
-    doc.text(`${tournament.name} (${tournament.type} ${tournament.year}) — ${today}`, 14, 24);
-    doc.setFontSize(9);
-    doc.text(`Al día: ${this.playersUpToDate}   ·   Con deudas: ${this.playersWithDebt}`, 14, 30);
+    const startY = await this.addPdfHeader(doc, `${teamName} — Estado de pagos`, [
+      `${tournament.name} (${tournament.type} ${tournament.year}) — ${today}`,
+      `Al día: ${this.playersUpToDate}   ·   Con deudas: ${this.playersWithDebt}`
+    ]);
 
     const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro'];
     const body = this.statusRows.map(row => [
@@ -460,7 +478,7 @@ export class ReportsComponent implements OnInit {
     ]);
 
     autoTable(doc, {
-      startY: 36,
+      startY,
       head: [head],
       body,
       styles: { fontSize: 9, halign: 'center' },
@@ -501,12 +519,11 @@ export class ReportsComponent implements OnInit {
     XLSX.writeFile(wb, `estado-pagos-${tournament.name.replace(/\s+/g, '-').toLowerCase()}.xlsx`);
   }
 
-  exportPendingPdf(): void {
+  async exportPendingPdf(): Promise<void> {
     const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text(`${this.team?.name ?? 'FAES'} — Cuotas pendientes`, 14, 20);
+    const startY = await this.addPdfHeader(doc, `${this.team?.name ?? 'FAES'} — Cuotas pendientes`, []);
     autoTable(doc, {
-      startY: 28,
+      startY,
       head: [['Jugador', 'Torneo', 'Cuota', 'Monto']],
       body: this.pending.map(r => [r.player, r.tournament, String(r.installment), formatMoney(r.amount)])
     });
