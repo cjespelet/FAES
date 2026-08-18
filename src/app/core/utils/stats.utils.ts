@@ -24,7 +24,7 @@ export function countPendingPayments(
   let count = 0;
   for (const tournament of tournaments) {
     for (const player of payers) {
-      for (let i = 1; i <= tournament.installments; i++) {
+      for (let i = 1; i <= (Number(tournament.installments) || 0); i++) {
         if (!paidSet.has(`${player.id}-${tournament.id}-${i}`)) {
           count++;
         }
@@ -71,7 +71,7 @@ export function buildPendingPaymentRows(
   for (const tournament of tournaments) {
     for (const player of payers) {
       const amount = installmentForPlayer(tournament, players, player);
-      for (let i = 1; i <= tournament.installments; i++) {
+      for (let i = 1; i <= (Number(tournament.installments) || 0); i++) {
         if (!paidSet.has(`${player.id}-${tournament.id}-${i}`)) {
           rows.push({
             player: player.name,
@@ -83,7 +83,7 @@ export function buildPendingPaymentRows(
       }
     }
   }
-  return rows.sort((a, b) => a.player.localeCompare(b.player));
+  return rows.sort((a, b) => (a.player || '').localeCompare(b.player || '', 'es'));
 }
 
 export interface InitialScheduleRow {
@@ -113,11 +113,12 @@ export function buildInitialSchedule(
   const units = payingUnits(players);
   const fullCuota = installmentForPayers(tournament, units);
   return [...players]
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
     .map(player => {
       const exemption = paymentExemption(player);
       const cuota = fullCuota * paymentWeight(player);
-      const installments = Array.from({ length: tournament.installments }, () => cuota);
+      const count = Number(tournament.installments) || 0;
+      const installments = Array.from({ length: count }, () => cuota);
       const insurance = insuranceAmountForPlayer(player.id, insurances);
       return {
         player: player.name,
@@ -170,12 +171,12 @@ export function buildPaymentStatus(
   );
 
   return [...players]
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
     .map(player => {
       const exemption = paymentExemption(player);
       const exempt = exemption === 'full';
       const installments: PayStatus[] = Array.from(
-        { length: tournament.installments },
+        { length: Number(tournament.installments) || 0 },
         (_, i) => {
           if (exempt) return 'Liberado';
           return paidSet.has(`${player.id}-${i + 1}`) ? 'Pagó' : 'No pagó';

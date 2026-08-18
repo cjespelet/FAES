@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   doc,
-  docData,
   setDoc,
   updateDoc,
   Timestamp
@@ -10,6 +9,7 @@ import {
 import { Observable, from } from 'rxjs';
 import { Team } from '../models/team.model';
 import { AuthService } from './auth.service';
+import { listenDocument } from '../utils/firestore.utils';
 
 @Injectable({
   providedIn: 'root'
@@ -23,8 +23,7 @@ export class TeamService {
   }
 
   getTeam(): Observable<Team | undefined> {
-    const docRef = doc(this.firestore, this.getDocPath()) as any;
-    return docData(docRef, { idField: 'id' }) as Observable<Team | undefined>;
+    return listenDocument<Team>(doc(this.firestore, this.getDocPath()));
   }
 
   saveTeam(team: Omit<Team, 'id' | 'createdAt' | 'updatedAt'>): Observable<void> {

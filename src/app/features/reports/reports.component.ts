@@ -1,7 +1,8 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { combineLatest, take } from 'rxjs';
+import { combineLatest, of } from 'rxjs';
+import { catchError, take, timeout } from 'rxjs/operators';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -325,12 +326,15 @@ export class ReportsComponent implements OnInit {
   loadReport(): void {
     this.loading = true;
     combineLatest({
-      players: this.playerService.getActivePlayers(),
-      tournaments: this.tournamentService.getTournaments(),
-      payments: this.tournamentService.getAllPayments(),
-      insurances: this.insuranceService.getInsurances(),
-      team: this.teamService.getTeam()
-    }).pipe(take(1)).subscribe({
+      players: this.playerService.getActivePlayers().pipe(catchError(() => of([]))),
+      tournaments: this.tournamentService.getTournaments().pipe(catchError(() => of([]))),
+      payments: this.tournamentService.getAllPayments().pipe(catchError(() => of([]))),
+      insurances: this.insuranceService.getInsurances().pipe(catchError(() => of([]))),
+      team: this.teamService.getTeam().pipe(catchError(() => of(undefined)))
+    }).pipe(
+      take(1),
+      timeout(12000)
+    ).subscribe({
       next: ({ players, tournaments, payments, insurances, team }) => {
         this.players = players;
         this.insurances = insurances;
@@ -345,9 +349,10 @@ export class ReportsComponent implements OnInit {
         this.rebuildSchedule();
         this.loading = false;
       },
-      error: () => {
+      error: (err) => {
         this.loading = false;
-        this.snackBar.open('Error al generar reporte', 'Cerrar', { duration: 4000 });
+        const message = err?.message ? `Error al generar reporte: ${err.message}` : 'Error al generar reporte';
+        this.snackBar.open(message, 'Cerrar', { duration: 6000 });
       }
     });
   }
@@ -360,9 +365,17 @@ export class ReportsComponent implements OnInit {
       this.statusRows = [];
       return;
     }
-    this.scheduleHeaders = initialScheduleHeaders(tournament);
-    this.schedule = buildInitialSchedule(this.players, tournament, this.insurances);
-    this.statusRows = buildPaymentStatus(this.players, tournament, this.payments, this.insurances);
+    try {
+      this.scheduleHeaders = initialScheduleHeaders(tournament);
+      this.schedule = buildInitialSchedule(this.players, tournament, this.insurances);
+      this.statusRows = buildPaymentStatus(this.players, tournament, this.payments, this.insurances);
+    } catch (err) {
+      console.error(err);
+      this.schedule = [];
+      this.scheduleHeaders = [];
+      this.statusRows = [];
+      this.snackBar.open('No se pudo armar el reporte con los datos actuales', 'Cerrar', { duration: 5000 });
+    }
   }
 
   exportInitialPdf(): void {
