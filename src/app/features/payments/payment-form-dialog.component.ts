@@ -13,7 +13,7 @@ import { TournamentPayment } from '../../core/models/tournament.model';
 import { Player } from '../../core/models/player.model';
 import { Tournament } from '../../core/models/tournament.model';
 import { toDate } from '../../core/utils/date.utils';
-import { installmentForPayers, payingPlayers } from '../../core/utils/payment.utils';
+import { installmentForPayers, installmentForPlayer, payingPlayers, payingUnits, paymentExemption } from '../../core/utils/payment.utils';
 
 export interface PaymentFormData {
   payment?: TournamentPayment;
@@ -52,7 +52,7 @@ export interface PaymentFormData {
           <mat-label>Jugador</mat-label>
           <mat-select formControlName="playerId">
             @for (p of payablePlayers; track p.id) {
-              <mat-option [value]="p.id">{{ p.name }}</mat-option>
+              <mat-option [value]="p.id">{{ p.name }}{{ paymentExemption(p) === 'half' ? ' (50%)' : '' }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -124,6 +124,8 @@ export class PaymentFormDialogComponent implements OnInit {
     return payers;
   }
 
+  paymentExemption = paymentExemption;
+
   form = this.fb.group({
     tournamentId: [this.data.payment?.tournamentId ?? '', Validators.required],
     playerId: [this.data.payment?.playerId ?? '', Validators.required],
@@ -138,19 +140,31 @@ export class PaymentFormDialogComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.form.get('tournamentId')?.valueChanges.subscribe((id) => this.updateInstallments(id));
+    this.form.get('tournamentId')?.valueChanges.subscribe((id) => {
+      this.updateInstallments(id);
+      this.syncAmount();
+    });
+    this.form.get('playerId')?.valueChanges.subscribe(() => this.syncAmount());
     this.updateInstallments(this.form.get('tournamentId')?.value);
+    this.syncAmount();
   }
 
   private updateInstallments(tournamentId: string | null | undefined): void {
     const tournament = this.data.tournaments.find(t => t.id === tournamentId);
     if (tournament) {
       this.installmentOptions = Array.from({ length: tournament.installments }, (_, i) => i + 1);
-      if (!this.isEdit) {
-        const payingCount = payingPlayers(this.data.players).length;
-        this.form.patchValue({ amount: installmentForPayers(tournament, payingCount) });
-      }
     }
+  }
+
+  private syncAmount(): void {
+    if (this.isEdit) return;
+    const tournament = this.data.tournaments.find(t => t.id === this.form.get('tournamentId')?.value);
+    if (!tournament) return;
+    const player = this.data.players.find(p => p.id === this.form.get('playerId')?.value);
+    const amount = player
+      ? installmentForPlayer(tournament, this.data.players, player)
+      : installmentForPayers(tournament, payingUnits(this.data.players));
+    this.form.patchValue({ amount });
   }
 
   save(): void {

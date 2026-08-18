@@ -15,6 +15,7 @@ import { PlayerService } from '../../core/services/player.service';
 import { Tournament, TournamentPayment } from '../../core/models/tournament.model';
 import { Player } from '../../core/models/player.model';
 import { toDate, toTimestamp } from '../../core/utils/date.utils';
+import { payingPlayers } from '../../core/utils/payment.utils';
 import { PaymentFormDialogComponent } from './payment-form-dialog.component';
 
 interface PaymentRow extends TournamentPayment {
@@ -126,7 +127,7 @@ export class PaymentsComponent implements OnInit {
   columns = ['date', 'player', 'tournament', 'installment', 'amount', 'method', 'actions'];
 
   get canAdd(): boolean {
-    return this.players.some(p => !p.paymentExempt) && this.tournaments.length > 0;
+    return payingPlayers(this.players).length > 0 && this.tournaments.length > 0;
   }
 
   ngOnInit(): void {

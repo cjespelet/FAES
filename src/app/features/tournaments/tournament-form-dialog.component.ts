@@ -13,7 +13,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { Tournament } from '../../core/models/tournament.model';
 import { getInstallmentDueDates, toDate, formatMoney } from '../../core/utils/date.utils';
 import { PlayerService } from '../../core/services/player.service';
-import { payingPlayers, tournamentShare } from '../../core/utils/payment.utils';
+import { formatUnits, payingUnits, paymentExemption, tournamentShare } from '../../core/utils/payment.utils';
 import { take } from 'rxjs/operators';
 
 export interface TournamentFormData {
@@ -128,8 +128,9 @@ export class TournamentFormDialogComponent {
 
   isEdit = !!this.data.tournament;
   currentYear = new Date().getFullYear();
-  payingCount = 0;
-  exemptCount = 0;
+  payingUnitsCount = 0;
+  fullExemptCount = 0;
+  halfExemptCount = 0;
 
   form = this.fb.group({
     name: [this.data.tournament?.name ?? '', Validators.required],
@@ -157,13 +158,21 @@ export class TournamentFormDialogComponent {
     const total = Number(this.form.get('totalAmount')?.value ?? 0);
     const installments = Number(this.form.get('installments')?.value ?? 1);
     if (total <= 0 || installments <= 0) return '';
-    if (this.payingCount <= 0) {
-      return 'Marcá jugadores activos que no estén liberados para calcular la cuota.';
+    if (this.payingUnitsCount <= 0) {
+      return 'Marcá jugadores activos que no estén liberados al 100% para calcular la cuota.';
     }
-    const share = tournamentShare(total, this.payingCount);
+    const share = tournamentShare(total, this.payingUnitsCount);
     const cuota = share / installments;
-    const exemptText = this.exemptCount > 0 ? ` (${this.exemptCount} liberado${this.exemptCount === 1 ? '' : 's'})` : '';
-    return `Se divide entre ${this.payingCount} jugador${this.payingCount === 1 ? '' : 'es'}${exemptText}: ${formatMoney(share)} cada uno (${formatMoney(cuota)} por cuota).`;
+    const parts: string[] = [];
+    if (this.fullExemptCount > 0) {
+      parts.push(`${this.fullExemptCount} liberado${this.fullExemptCount === 1 ? '' : 's'}`);
+    }
+    if (this.halfExemptCount > 0) {
+      parts.push(`${this.halfExemptCount} al 50%`);
+    }
+    const extra = parts.length ? ` (${parts.join(', ')})` : '';
+    const halfText = this.halfExemptCount > 0 ? `; 50% = ${formatMoney(cuota / 2)}` : '';
+    return `Se divide entre ${formatUnits(this.payingUnitsCount)} jugadores equivalentes${extra}: ${formatMoney(share)} cada 100% (${formatMoney(cuota)} por cuota${halfText}).`;
   }
 
   constructor() {
@@ -171,9 +180,9 @@ export class TournamentFormDialogComponent {
     this.form.get('installments')?.valueChanges.subscribe(() => this.syncDueDates(true));
     this.form.get('startDate')?.valueChanges.subscribe(() => this.syncDueDates(true));
     this.playerService.getActivePlayers().pipe(take(1)).subscribe(players => {
-      const payers = payingPlayers(players);
-      this.payingCount = payers.length;
-      this.exemptCount = players.filter(p => p.paymentExempt).length;
+      this.payingUnitsCount = payingUnits(players);
+      this.fullExemptCount = players.filter(p => paymentExemption(p) === 'full').length;
+      this.halfExemptCount = players.filter(p => p.active !== false && paymentExemption(p) === 'half').length;
     });
   }
 

@@ -1,8 +1,16 @@
-import { Player } from '../models/player.model';
+import { Player, PaymentExemption } from '../models/player.model';
 import { Tournament, TournamentPayment } from '../models/tournament.model';
 import { Insurance } from '../models/insurance.model';
 import { getInstallmentDueDates, toDate } from './date.utils';
-import { installmentForPayers, isPaymentExempt, payingPlayers } from './payment.utils';
+import {
+  installmentForPayers,
+  installmentForPlayer,
+  isPaymentExempt,
+  payingPlayers,
+  payingUnits,
+  paymentExemption,
+  paymentWeight
+} from './payment.utils';
 
 export function countPendingPayments(
   players: Player[],
@@ -61,8 +69,8 @@ export function buildPendingPaymentRows(
   const rows: PendingPaymentRow[] = [];
 
   for (const tournament of tournaments) {
-    const amount = installmentForPayers(tournament, payers.length);
     for (const player of payers) {
+      const amount = installmentForPlayer(tournament, players, player);
       for (let i = 1; i <= tournament.installments; i++) {
         if (!paidSet.has(`${player.id}-${tournament.id}-${i}`)) {
           rows.push({
@@ -84,6 +92,7 @@ export interface InitialScheduleRow {
   insurance: number;
   total: number;
   exempt: boolean;
+  exemption: PaymentExemption;
 }
 
 export function insuranceAmountForPlayer(playerId: string, insurances: Insurance[]): number {
@@ -101,13 +110,13 @@ export function buildInitialSchedule(
   tournament: Tournament,
   insurances: Insurance[]
 ): InitialScheduleRow[] {
-  const payers = payingPlayers(players);
-  const installmentAmount = installmentForPayers(tournament, payers.length);
+  const units = payingUnits(players);
+  const fullCuota = installmentForPayers(tournament, units);
   return [...players]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(player => {
-      const exempt = isPaymentExempt(player);
-      const cuota = exempt ? 0 : installmentAmount;
+      const exemption = paymentExemption(player);
+      const cuota = fullCuota * paymentWeight(player);
       const installments = Array.from({ length: tournament.installments }, () => cuota);
       const insurance = insuranceAmountForPlayer(player.id, insurances);
       return {
@@ -115,7 +124,8 @@ export function buildInitialSchedule(
         installments,
         insurance,
         total: cuota * tournament.installments + insurance,
-        exempt
+        exempt: isPaymentExempt(player),
+        exemption
       };
     });
 }
@@ -138,6 +148,7 @@ export interface PaymentStatusRow {
   paidCount: number;
   pendingCount: number;
   exempt: boolean;
+  exemption: PaymentExemption;
 }
 
 export function insuranceStatusForPlayer(playerId: string, insurances: Insurance[]): PayStatus {
@@ -161,7 +172,8 @@ export function buildPaymentStatus(
   return [...players]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(player => {
-      const exempt = isPaymentExempt(player);
+      const exemption = paymentExemption(player);
+      const exempt = exemption === 'full';
       const installments: PayStatus[] = Array.from(
         { length: tournament.installments },
         (_, i) => {
@@ -177,7 +189,8 @@ export function buildPaymentStatus(
         insurance,
         paidCount: statuses.filter(s => s === 'Pagó').length,
         pendingCount: statuses.filter(s => s === 'No pagó').length,
-        exempt
+        exempt,
+        exemption
       };
     });
 }

@@ -13,6 +13,7 @@ import { PlayerService } from '../../core/services/player.service';
 import { Player } from '../../core/models/player.model';
 import { toTimestamp, omitUndefined } from '../../core/utils/date.utils';
 import { PlayerFormDialogComponent } from './player-form-dialog.component';
+import { exemptionLabel, paymentExemption } from '../../core/utils/payment.utils';
 
 @Component({
   selector: 'app-players',
@@ -67,8 +68,10 @@ import { PlayerFormDialogComponent } from './player-form-dialog.component';
                 <span class="chip" [class.active]="p.active" [class.inactive]="!p.active">
                   {{ p.active ? 'Activo' : 'Inactivo' }}
                 </span>
-                @if (p.paymentExempt) {
-                  <span class="chip exempt">Liberado</span>
+                @if (paymentExemption(p) !== 'none') {
+                  <span class="chip" [class.exempt]="paymentExemption(p) === 'full'" [class.half]="paymentExemption(p) === 'half'">
+                    {{ exemptionLabel(paymentExemption(p)) }}
+                  </span>
                 }
               </td>
             </ng-container>
@@ -101,6 +104,7 @@ import { PlayerFormDialogComponent } from './player-form-dialog.component';
     .chip.active { background: #e8f5e9; color: #2e7d32; }
     .chip.inactive { background: #ffebee; color: #c62828; }
     .chip.exempt { background: #fff8e1; color: #f57f17; margin-left: 6px; }
+    .chip.half { background: #e3f2fd; color: #1565c0; margin-left: 6px; }
   `]
 })
 export class PlayersComponent implements OnInit {
@@ -112,6 +116,9 @@ export class PlayersComponent implements OnInit {
   players: Player[] = [];
   loading = true;
   columns = ['name', 'dni', 'phone', 'status', 'actions'];
+
+  exemptionLabel = exemptionLabel;
+  paymentExemption = paymentExemption;
 
   ngOnInit(): void {
     this.loadPlayers();
@@ -140,7 +147,8 @@ export class PlayersComponent implements OnInit {
         joinedDate: toTimestamp(result.joinedDate),
         notes: result.notes || undefined,
         active: result.active,
-        paymentExempt: !!result.paymentExempt
+        paymentExemption: result.paymentExemption,
+        paymentExempt: result.paymentExemption === 'full'
       });
       if (player) {
         this.playerService.updatePlayer(player.id, payload as any).subscribe({

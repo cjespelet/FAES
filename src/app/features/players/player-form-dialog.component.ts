@@ -8,9 +8,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatSelectModule } from '@angular/material/select';
 
 import { Player } from '../../core/models/player.model';
 import { toDate } from '../../core/utils/date.utils';
+import { paymentExemption } from '../../core/utils/payment.utils';
 
 export interface PlayerFormData {
   player?: Player;
@@ -28,7 +30,8 @@ export interface PlayerFormData {
     MatButtonModule,
     MatSlideToggleModule,
     MatDatepickerModule,
-    MatNativeDateModule
+    MatNativeDateModule,
+    MatSelectModule
   ],
   template: `
     <h2 mat-dialog-title>{{ isEdit ? 'Editar Jugador' : 'Nuevo Jugador' }}</h2>
@@ -76,9 +79,18 @@ export interface PlayerFormData {
         </mat-form-field>
 
         <mat-slide-toggle formControlName="active">Jugador activo</mat-slide-toggle>
-        <mat-slide-toggle formControlName="paymentExempt">Liberado del pago del torneo</mat-slide-toggle>
-        @if (form.get('paymentExempt')?.value) {
+        <mat-form-field appearance="outline">
+          <mat-label>Pago del torneo</mat-label>
+          <mat-select formControlName="paymentExemption">
+            <mat-option value="none">Paga el 100%</mat-option>
+            <mat-option value="half">Liberado 50%</mat-option>
+            <mat-option value="full">Liberado 100%</mat-option>
+          </mat-select>
+        </mat-form-field>
+        @if (form.get('paymentExemption')?.value === 'full') {
           <p class="hint">No se le cobran cuotas. El monto del torneo se reparte entre el resto.</p>
+        } @else if (form.get('paymentExemption')?.value === 'half') {
+          <p class="hint">Paga la mitad de la cuota. El resto del equipo cubre la otra mitad.</p>
         }
       </form>
     </mat-dialog-content>
@@ -119,7 +131,7 @@ export class PlayerFormDialogComponent {
     ],
     notes: [this.data.player?.notes ?? ''],
     active: [this.data.player?.active ?? true],
-    paymentExempt: [this.data.player?.paymentExempt ?? false]
+    paymentExemption: [this.data.player ? paymentExemption(this.data.player) : 'none']
   });
 
   save(): void {

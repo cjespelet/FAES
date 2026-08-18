@@ -14,7 +14,7 @@ import { TournamentService } from '../../core/services/tournament.service';
 import { PlayerService } from '../../core/services/player.service';
 import { Tournament } from '../../core/models/tournament.model';
 import { toDate, toTimestamp, omitUndefined } from '../../core/utils/date.utils';
-import { installmentForPayers, tournamentShare } from '../../core/utils/payment.utils';
+import { formatUnits, installmentForPayers, payingUnits, tournamentShare } from '../../core/utils/payment.utils';
 import { TournamentFormDialogComponent } from './tournament-form-dialog.component';
 
 @Component({
@@ -64,9 +64,9 @@ import { TournamentFormDialogComponent } from './tournament-form-dialog.componen
               <th mat-header-cell *matHeaderCellDef>Monto / Cuotas</th>
               <td mat-cell *matCellDef="let t">
                 {{ t.totalAmount | currency:'ARS':'symbol-narrow':'1.0-0' }}
-                @if (payingCount > 0) {
+                @if (payingUnitsCount > 0) {
                   <span class="split">
-                    ÷ {{ payingCount }} = {{ shareFor(t) | currency:'ARS':'symbol-narrow':'1.0-0' }}
+                    ÷ {{ formatUnits(payingUnitsCount) }} = {{ shareFor(t) | currency:'ARS':'symbol-narrow':'1.0-0' }}
                     ({{ t.installments }} x {{ cuotaFor(t) | currency:'ARS':'symbol-narrow':'1.0-0' }})
                   </span>
                 }
@@ -116,9 +116,11 @@ export class TournamentsComponent implements OnInit {
   private route = inject(ActivatedRoute);
 
   tournaments: Tournament[] = [];
-  payingCount = 0;
+  payingUnitsCount = 0;
   loading = true;
   columns = ['name', 'type', 'amount', 'dates', 'status', 'actions'];
+
+  formatUnits = formatUnits;
 
   ngOnInit(): void {
     this.loadTournaments();
@@ -132,11 +134,11 @@ export class TournamentsComponent implements OnInit {
   }
 
   shareFor(tournament: Tournament): number {
-    return tournamentShare(tournament.totalAmount, this.payingCount);
+    return tournamentShare(tournament.totalAmount, this.payingUnitsCount);
   }
 
   cuotaFor(tournament: Tournament): number {
-    return installmentForPayers(tournament, this.payingCount);
+    return installmentForPayers(tournament, this.payingUnitsCount);
   }
 
   loadTournaments(): void {
@@ -147,7 +149,7 @@ export class TournamentsComponent implements OnInit {
     }).pipe(take(1)).subscribe({
       next: ({ tournaments, players }) => {
         this.tournaments = tournaments;
-        this.payingCount = players.filter(p => !p.paymentExempt).length;
+        this.payingUnitsCount = payingUnits(players);
         this.loading = false;
       },
       error: (err) => {

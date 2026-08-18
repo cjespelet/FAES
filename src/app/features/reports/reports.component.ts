@@ -32,6 +32,7 @@ import {
   PendingPaymentRow
 } from '../../core/utils/stats.utils';
 import { formatMoney } from '../../core/utils/date.utils';
+import { exemptionLabel } from '../../core/utils/payment.utils';
 
 @Component({
   selector: 'app-reports',
@@ -104,7 +105,7 @@ import { formatMoney } from '../../core/utils/date.utils';
                   <tbody>
                     @for (row of schedule; track row.player) {
                       <tr>
-                        <td>{{ row.player }}{{ row.exempt ? ' (Liberado)' : '' }}</td>
+                        <td>{{ row.player }}{{ exemptionSuffix(row.exemption) }}</td>
                         @for (amount of row.installments; track $index) {
                           <td>{{ row.exempt ? 'Liberado' : (amount | currency:'ARS':'symbol-narrow':'1.0-0') }}</td>
                         }
@@ -166,7 +167,7 @@ import { formatMoney } from '../../core/utils/date.utils';
                   <tbody>
                     @for (row of statusRows; track row.player) {
                       <tr>
-                        <td>{{ row.player }}</td>
+                        <td>{{ row.player }}{{ exemptionSuffix(row.exemption) }}</td>
                         @for (status of row.installments; track $index) {
                           <td
                             [class.paid]="status === 'Pagó'"
@@ -312,6 +313,11 @@ export class ReportsComponent implements OnInit {
     return this.statusRows.filter(r => !r.exempt && r.pendingCount > 0).length;
   }
 
+  exemptionSuffix(exemption: InitialScheduleRow['exemption'] | PaymentStatusRow['exemption']): string {
+    const label = exemptionLabel(exemption);
+    return label ? ` (${label})` : '';
+  }
+
   ngOnInit(): void {
     this.loadReport();
   }
@@ -374,7 +380,7 @@ export class ReportsComponent implements OnInit {
 
     const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro', 'Total'];
     const body = this.schedule.map(row => [
-      row.exempt ? `${row.player} (Liberado)` : row.player,
+      row.exempt ? `${row.player} (Liberado)` : `${row.player}${this.exemptionSuffix(row.exemption)}`,
       ...row.installments.map(amount => row.exempt ? 'Liberado' : formatMoney(amount)),
       formatMoney(row.insurance),
       formatMoney(row.total)
@@ -404,7 +410,7 @@ export class ReportsComponent implements OnInit {
     const headers = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' ')), 'Seguro', 'Total'];
     const data = this.schedule.map(row => {
       const record: Record<string, string | number> = {
-        Jugadores: row.exempt ? `${row.player} (Liberado)` : row.player
+        Jugadores: row.exempt ? `${row.player} (Liberado)` : `${row.player}${this.exemptionSuffix(row.exemption)}`
       };
       row.installments.forEach((amount, i) => {
         record[headers[i + 1]] = row.exempt ? 'Liberado' : amount;
@@ -434,7 +440,11 @@ export class ReportsComponent implements OnInit {
     doc.text(`Al día: ${this.playersUpToDate}   ·   Con deudas: ${this.playersWithDebt}`, 14, 30);
 
     const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro'];
-    const body = this.statusRows.map(row => [row.player, ...row.installments, row.insurance]);
+    const body = this.statusRows.map(row => [
+      `${row.player}${this.exemptionSuffix(row.exemption)}`,
+      ...row.installments,
+      row.insurance
+    ]);
 
     autoTable(doc, {
       startY: 36,
@@ -465,7 +475,7 @@ export class ReportsComponent implements OnInit {
     if (!tournament) return;
     const headers = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' ')), 'Seguro'];
     const data = this.statusRows.map(row => {
-      const record: Record<string, string> = { Jugadores: row.player };
+      const record: Record<string, string> = { Jugadores: `${row.player}${this.exemptionSuffix(row.exemption)}` };
       row.installments.forEach((status, i) => {
         record[headers[i + 1]] = status;
       });
