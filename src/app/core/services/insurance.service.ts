@@ -2,14 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   collection,
-  collectionData,
   doc,
   docData,
   addDoc,
   updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
   Timestamp
 } from '@angular/fire/firestore';
@@ -17,6 +15,8 @@ import { Observable, from } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Insurance } from '../models/insurance.model';
 import { AuthService } from './auth.service';
+import { toDate } from '../utils/date.utils';
+import { listenCollection } from '../utils/firestore.utils';
 
 @Injectable({
   providedIn: 'root'
@@ -26,40 +26,33 @@ export class InsuranceService {
   private authService = inject(AuthService);
 
   private getCollectionPath(): string {
-    const userId = this.authService.getCurrentUser()?.uid;
-    if (!userId) throw new Error('User not authenticated');
-    return `users/${userId}/insurance`;
+    return `users/${this.authService.getUid()}/insurance`;
   }
 
   getInsurances(): Observable<Insurance[]> {
     const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(collectionRef, orderBy('startDate', 'desc'));
-    return collectionData(q, { idField: 'id' }) as Observable<Insurance[]>;
+    return listenCollection<Insurance>(query(collectionRef, orderBy('startDate', 'desc'))).pipe(
+      map(items => [...items].sort(
+        (a, b) => toDate(b.startDate).getTime() - toDate(a.startDate).getTime()
+      ))
+    );
   }
 
   getInsurance(id: string): Observable<Insurance> {
-    const docRef = doc(this.firestore, `${this.getCollectionPath()}/${id}`);
+    const docRef = doc(this.firestore, `${this.getCollectionPath()}/${id}`) as any;
     return docData(docRef, { idField: 'id' }) as Observable<Insurance>;
   }
 
   getInsurancesByPlayer(playerId: string): Observable<Insurance[]> {
-    const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(
-      collectionRef,
-      where('playerId', '==', playerId),
-      orderBy('startDate', 'desc')
+    return this.getInsurances().pipe(
+      map(items => items.filter(insurance => insurance.playerId === playerId))
     );
-    return collectionData(q, { idField: 'id' }) as Observable<Insurance[]>;
   }
 
   getPendingInsurances(): Observable<Insurance[]> {
-    const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(
-      collectionRef,
-      where('paid', '==', false),
-      orderBy('startDate', 'desc')
+    return this.getInsurances().pipe(
+      map(items => items.filter(insurance => !insurance.paid))
     );
-    return collectionData(q, { idField: 'id' }) as Observable<Insurance[]>;
   }
 
   addInsurance(insurance: Omit<Insurance, 'id' | 'createdAt' | 'updatedAt'>): Observable<string> {

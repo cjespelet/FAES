@@ -8,6 +8,7 @@ export interface Tournament {
   installmentAmount: number;
   startDate: Date;
   endDate: Date;
+  installmentDueDates?: Date[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;

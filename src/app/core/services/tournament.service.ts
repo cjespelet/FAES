@@ -2,14 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   collection,
-  collectionData,
   doc,
   docData,
   addDoc,
   updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
   Timestamp
 } from '@angular/fire/firestore';
@@ -17,6 +15,8 @@ import { Observable, from } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Tournament, TournamentPayment } from '../models/tournament.model';
 import { AuthService } from './auth.service';
+import { omitUndefined, toDate } from '../utils/date.utils';
+import { listenCollection } from '../utils/firestore.utils';
 
 @Injectable({
   providedIn: 'root'
@@ -26,21 +26,21 @@ export class TournamentService {
   private authService = inject(AuthService);
 
   private getCollectionPath(): string {
-    const userId = this.authService.getCurrentUser()?.uid;
-    if (!userId) throw new Error('User not authenticated');
-    return `users/${userId}/tournaments`;
+    return `users/${this.authService.getUid()}/tournaments`;
   }
 
   private getPaymentsPath(): string {
-    const userId = this.authService.getCurrentUser()?.uid;
-    if (!userId) throw new Error('User not authenticated');
-    return `users/${userId}/tournament-payments`;
+    return `users/${this.authService.getUid()}/tournament-payments`;
   }
 
   getTournaments(): Observable<Tournament[]> {
     const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(collectionRef, orderBy('year', 'desc'), orderBy('startDate', 'desc'));
-    return collectionData(q, { idField: 'id' }) as Observable<Tournament[]>;
+    return listenCollection<Tournament>(query(collectionRef, orderBy('year', 'desc'))).pipe(
+      map(items => [...items].sort((a, b) => {
+        if ((b.year ?? 0) !== (a.year ?? 0)) return (b.year ?? 0) - (a.year ?? 0);
+        return toDate(b.startDate).getTime() - toDate(a.startDate).getTime();
+      }))
+    );
   }
 
   getTournament(id: string): Observable<Tournament> {
@@ -49,23 +49,19 @@ export class TournamentService {
   }
 
   getActiveTournaments(): Observable<Tournament[]> {
-    const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(
-      collectionRef,
-      where('active', '==', true),
-      orderBy('startDate', 'desc')
+    return this.getTournaments().pipe(
+      map(items => items.filter(t => t.active !== false))
     );
-    return collectionData(q, { idField: 'id' }) as Observable<Tournament[]>;
   }
 
   addTournament(tournament: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'>): Observable<string> {
     const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const newTournament = {
+    const newTournament = omitUndefined({
       ...tournament,
       installmentAmount: tournament.totalAmount / tournament.installments,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
-    };
+    });
     return from(addDoc(collectionRef, newTournament)).pipe(
       map(docRef => docRef.id)
     );
@@ -73,10 +69,10 @@ export class TournamentService {
 
   updateTournament(id: string, tournament: Partial<Tournament>): Observable<void> {
     const docRef = doc(this.firestore, `${this.getCollectionPath()}/${id}`);
-    return from(updateDoc(docRef, {
+    return from(updateDoc(docRef, omitUndefined({
       ...tournament,
       updatedAt: Timestamp.now()
-    }));
+    })));
   }
 
   deleteTournament(id: string): Observable<void> {
@@ -84,24 +80,25 @@ export class TournamentService {
     return from(deleteDoc(docRef));
   }
 
-  getPaymentsByTournament(tournamentId: string): Observable<TournamentPayment[]> {
+  getAllPayments(): Observable<TournamentPayment[]> {
     const collectionRef = collection(this.firestore, this.getPaymentsPath());
-    const q = query(
-      collectionRef,
-      where('tournamentId', '==', tournamentId),
-      orderBy('paymentDate', 'desc')
+    return listenCollection<TournamentPayment>(query(collectionRef, orderBy('paymentDate', 'desc'))).pipe(
+      map(items => [...items].sort(
+        (a, b) => toDate(b.paymentDate).getTime() - toDate(a.paymentDate).getTime()
+      ))
     );
-    return collectionData(q, { idField: 'id' }) as Observable<TournamentPayment[]>;
+  }
+
+  getPaymentsByTournament(tournamentId: string): Observable<TournamentPayment[]> {
+    return this.getAllPayments().pipe(
+      map(items => items.filter(p => p.tournamentId === tournamentId))
+    );
   }
 
   getPaymentsByPlayer(playerId: string): Observable<TournamentPayment[]> {
-    const collectionRef = collection(this.firestore, this.getPaymentsPath());
-    const q = query(
-      collectionRef,
-      where('playerId', '==', playerId),
-      orderBy('paymentDate', 'desc')
+    return this.getAllPayments().pipe(
+      map(items => items.filter(p => p.playerId === playerId))
     );
-    return collectionData(q, { idField: 'id' }) as Observable<TournamentPayment[]>;
   }
 
   addPayment(payment: Omit<TournamentPayment, 'id' | 'createdAt' | 'updatedAt'>): Observable<string> {

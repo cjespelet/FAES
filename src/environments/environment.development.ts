@@ -1,11 +1,11 @@
 export const environment = {
   production: false,
   firebase: {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyBzQlswtvCpMumPR7Z880tTxQ9-Wa2htTc",
+    authDomain: "faes-1833a.firebaseapp.com",
+    projectId: "faes-1833a",
+    storageBucket: "faes-1833a.firebasestorage.app",
+    messagingSenderId: "208476947251",
+    appId: "1:208476947251:web:23115ecec00d0a7f8d3446"
   }
 };

@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { NavigationError, Router, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
@@ -10,4 +10,14 @@ import { RouterOutlet } from '@angular/router';
 })
 export class AppComponent {
   title = 'FAES';
+  navError = '';
+
+  constructor() {
+    inject(Router).events.subscribe(event => {
+      if (event instanceof NavigationError) {
+        this.navError = event.error?.message || String(event.error || 'Error de navegación');
+        console.error(event.error);
+      }
+    });
+  }
 }

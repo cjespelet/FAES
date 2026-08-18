@@ -7,6 +7,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -21,7 +22,8 @@ import { AuthService } from '../../core/services/auth.service';
     MatListModule,
     MatIconModule,
     MatButtonModule,
-    MatMenuModule
+    MatMenuModule,
+    MatDividerModule
   ],
   template: `
     <mat-sidenav-container class="sidenav-container">
@@ -49,6 +51,11 @@ import { AuthService } from '../../core/services/auth.service';
           <a mat-list-item routerLink="/dashboard/payments" routerLinkActive="active">
             <mat-icon matListItemIcon>payment</mat-icon>
             <span matListItemTitle>Pagos</span>
+          </a>
+
+          <a mat-list-item routerLink="/dashboard/insurance" routerLinkActive="active">
+            <mat-icon matListItemIcon>health_and_safety</mat-icon>
+            <span matListItemTitle>Seguros</span>
           </a>
           
           <a mat-list-item routerLink="/dashboard/reports" routerLinkActive="active">

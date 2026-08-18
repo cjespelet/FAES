@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,6 +11,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AuthService } from '../../core/services/auth.service';
+import { of } from 'rxjs';
+import { catchError, take, timeout } from 'rxjs/operators';
 
 @Component({
   selector: 'app-login',
@@ -173,13 +175,25 @@ import { AuthService } from '../../core/services/auth.service';
     }
   `]
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
 
   loading = signal(false);
+
+  ngOnInit(): void {
+    this.authService.user$.pipe(
+      take(1),
+      timeout(2500),
+      catchError(() => of(null))
+    ).subscribe(user => {
+      if (user) {
+        this.router.navigate(['/dashboard']);
+      }
+    });
+  }
 
   loginForm: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],

@@ -2,14 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   collection,
-  collectionData,
   doc,
   docData,
   addDoc,
   updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
   Timestamp
 } from '@angular/fire/firestore';
@@ -17,6 +15,8 @@ import { Observable, from } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Player } from '../models/player.model';
 import { AuthService } from './auth.service';
+import { omitUndefined } from '../utils/date.utils';
+import { listenCollection } from '../utils/firestore.utils';
 
 @Injectable({
   providedIn: 'root'
@@ -26,15 +26,14 @@ export class PlayerService {
   private authService = inject(AuthService);
 
   private getCollectionPath(): string {
-    const userId = this.authService.getCurrentUser()?.uid;
-    if (!userId) throw new Error('User not authenticated');
-    return `users/${userId}/players`;
+    return `users/${this.authService.getUid()}/players`;
   }
 
   getPlayers(): Observable<Player[]> {
     const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(collectionRef, orderBy('name', 'asc'));
-    return collectionData(q, { idField: 'id' }) as Observable<Player[]>;
+    return listenCollection<Player>(query(collectionRef, orderBy('name', 'asc'))).pipe(
+      map(items => [...items].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')))
+    );
   }
 
   getPlayer(id: string): Observable<Player> {
@@ -43,22 +42,18 @@ export class PlayerService {
   }
 
   getActivePlayers(): Observable<Player[]> {
-    const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const q = query(
-      collectionRef,
-      where('active', '==', true),
-      orderBy('name', 'asc')
+    return this.getPlayers().pipe(
+      map(items => items.filter(player => player.active !== false))
     );
-    return collectionData(q, { idField: 'id' }) as Observable<Player[]>;
   }
 
   addPlayer(player: Omit<Player, 'id' | 'createdAt' | 'updatedAt'>): Observable<string> {
     const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const newPlayer = {
+    const newPlayer = omitUndefined({
       ...player,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
-    };
+    });
     return from(addDoc(collectionRef, newPlayer)).pipe(
       map(docRef => docRef.id)
     );
@@ -66,10 +61,10 @@ export class PlayerService {
 
   updatePlayer(id: string, player: Partial<Player>): Observable<void> {
     const docRef = doc(this.firestore, `${this.getCollectionPath()}/${id}`);
-    return from(updateDoc(docRef, {
+    return from(updateDoc(docRef, omitUndefined({
       ...player,
       updatedAt: Timestamp.now()
-    }));
+    })));
   }
 
   deletePlayer(id: string): Observable<void> {

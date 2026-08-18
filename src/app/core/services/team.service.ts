@@ -19,13 +19,11 @@ export class TeamService {
   private authService = inject(AuthService);
 
   private getDocPath(): string {
-    const userId = this.authService.getCurrentUser()?.uid;
-    if (!userId) throw new Error('User not authenticated');
-    return `users/${userId}/settings/team`;
+    return `users/${this.authService.getUid()}/settings/team`;
   }
 
   getTeam(): Observable<Team | undefined> {
-    const docRef = doc(this.firestore, this.getDocPath());
+    const docRef = doc(this.firestore, this.getDocPath()) as any;
     return docData(docRef, { idField: 'id' }) as Observable<Team | undefined>;
   }
 

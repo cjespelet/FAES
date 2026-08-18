@@ -7,6 +7,7 @@ export interface Player {
   active: boolean;
   joinedDate: Date;
   notes?: string;
+  paymentExempt?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
