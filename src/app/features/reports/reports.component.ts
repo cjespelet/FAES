@@ -175,10 +175,10 @@ import { loadLogoDataUrl } from '../../core/utils/logo.utils';
                           <td
                             [class.paid]="status === 'Pagó'"
                             [class.partial]="status === 'Parcial'"
-                            [class.unpaid]="status === 'No pagó'"
+                            [class.unpaid]="status === 'Pendiente'"
                             [class.exempt]="status === 'Liberado'">{{ status }}</td>
                         }
-                        <td [class.paid]="row.insurance === 'Pagó'" [class.unpaid]="row.insurance === 'No pagó'">
+                        <td [class.paid]="row.insurance === 'Pagó'" [class.unpaid]="row.insurance === 'Pendiente'">
                           {{ row.insurance }}
                         </td>
                       </tr>
@@ -504,7 +504,7 @@ export class ReportsComponent implements OnInit {
           data.cell.styles.fillColor = [255, 243, 224];
           data.cell.styles.textColor = [239, 108, 0];
         }
-        if (value === 'No pagó') {
+        if (value === 'Pendiente') {
           data.cell.styles.fillColor = [255, 235, 238];
           data.cell.styles.textColor = [198, 40, 40];
         }

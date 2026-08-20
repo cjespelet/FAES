@@ -144,7 +144,7 @@ export function initialScheduleHeaders(tournament: Tournament): string[] {
   return dates.map((date, i) => `Cuota ${i + 1}\n${date.toLocaleDateString('es-AR')}`);
 }
 
-export type PayStatus = 'Pagó' | 'Parcial' | 'No pagó' | 'Liberado' | '—';
+export type PayStatus = 'Pagó' | 'Parcial' | 'Pendiente' | 'Liberado' | '—';
 
 export interface PaymentStatusRow {
   player: string;
@@ -159,7 +159,7 @@ export interface PaymentStatusRow {
 export function insuranceStatusForPlayer(playerId: string, insurances: Insurance[]): PayStatus {
   const items = insurances.filter(i => i.playerId === playerId);
   if (items.length === 0) return '—';
-  return items.some(i => !i.paid) ? 'No pagó' : 'Pagó';
+  return items.some(i => !i.paid) ? 'Pendiente' : 'Pagó';
 }
 
 export function buildPaymentStatus(
@@ -184,7 +184,7 @@ export function buildPaymentStatus(
           const state = installmentPayState(paid, due);
           if (state === 'paid') return 'Pagó';
           if (state === 'partial') return 'Parcial';
-          return 'No pagó';
+          return 'Pendiente';
         }
       );
       const insurance = insuranceStatusForPlayer(player.id, insurances);
@@ -194,7 +194,7 @@ export function buildPaymentStatus(
         installments,
         insurance,
         paidCount: statuses.filter(s => s === 'Pagó').length,
-        pendingCount: statuses.filter(s => s === 'No pagó' || s === 'Parcial').length,
+        pendingCount: statuses.filter(s => s === 'Pendiente' || s === 'Parcial').length,
         exempt,
         exemption
       };
