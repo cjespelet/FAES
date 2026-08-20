@@ -14,7 +14,7 @@ import { TournamentService } from '../../core/services/tournament.service';
 import { PlayerService } from '../../core/services/player.service';
 import { Tournament, TournamentPayment } from '../../core/models/tournament.model';
 import { Player } from '../../core/models/player.model';
-import { toDate, toTimestamp } from '../../core/utils/date.utils';
+import { toDate, toTimestamp, omitUndefined } from '../../core/utils/date.utils';
 import { payingPlayers } from '../../core/utils/payment.utils';
 import { PaymentFormDialogComponent } from './payment-form-dialog.component';
 
@@ -45,6 +45,7 @@ interface PaymentRow extends TournamentPayment {
           Registrar Pago
         </button>
       </div>
+      <p class="page-hint">Podés cargar varios pagos para la misma cuota hasta completarla.</p>
 
       @if (!canAdd && !loading) {
         <mat-card><mat-card-content class="hint">
@@ -111,6 +112,7 @@ interface PaymentRow extends TournamentPayment {
     .loading, .empty, .hint { padding: 24px; text-align: center; }
     .empty { display: flex; flex-direction: column; align-items: center; gap: 16px; }
     .table { width: 100%; }
+    .page-hint { margin: -12px 0 20px; color: #666; }
   `]
 })
 export class PaymentsComponent implements OnInit {
@@ -160,9 +162,9 @@ export class PaymentsComponent implements OnInit {
         }));
         this.loading = false;
       },
-      error: () => {
+      error: (err) => {
         this.loading = false;
-        this.snackBar.open('Error al cargar pagos', 'Cerrar', { duration: 4000 });
+        this.snackBar.open(err?.message ? `Error al cargar pagos: ${err.message}` : 'Error al cargar pagos', 'Cerrar', { duration: 6000 });
       }
     });
   }
@@ -175,12 +177,12 @@ export class PaymentsComponent implements OnInit {
 
     const ref = this.dialog.open(PaymentFormDialogComponent, {
       width: '480px',
-      data: { payment, players: this.players, tournaments: this.tournaments }
+      data: { payment, players: this.players, tournaments: this.tournaments, payments: this.payments }
     });
 
     ref.afterClosed().subscribe((result) => {
       if (!result) return;
-      const payload = {
+      const payload = omitUndefined({
         tournamentId: result.tournamentId,
         playerId: result.playerId,
         installmentNumber: Number(result.installmentNumber),
@@ -188,16 +190,16 @@ export class PaymentsComponent implements OnInit {
         paymentMethod: result.paymentMethod,
         paymentDate: toTimestamp(result.paymentDate),
         notes: result.notes || undefined
-      };
+      });
       if (payment) {
         this.tournamentService.updatePayment(payment.id, payload as any).subscribe({
           next: () => { this.snackBar.open('Pago guardado', 'Cerrar', { duration: 3000 }); this.loadData(); },
-          error: () => this.snackBar.open('Error al guardar pago', 'Cerrar', { duration: 4000 })
+          error: (err) => this.snackBar.open(err?.message ? `Error al guardar pago: ${err.message}` : 'Error al guardar pago', 'Cerrar', { duration: 6000 })
         });
       } else {
         this.tournamentService.addPayment(payload as any).subscribe({
           next: () => { this.snackBar.open('Pago guardado', 'Cerrar', { duration: 3000 }); this.loadData(); },
-          error: () => this.snackBar.open('Error al guardar pago', 'Cerrar', { duration: 4000 })
+          error: (err) => this.snackBar.open(err?.message ? `Error al guardar pago: ${err.message}` : 'Error al guardar pago', 'Cerrar', { duration: 6000 })
         });
       }
     });

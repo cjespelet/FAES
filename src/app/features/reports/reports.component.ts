@@ -33,7 +33,7 @@ import {
   PendingPaymentRow
 } from '../../core/utils/stats.utils';
 import { formatMoney } from '../../core/utils/date.utils';
-import { exemptionLabel } from '../../core/utils/payment.utils';
+import { exemptionLabel, installmentForPayers, payingUnits } from '../../core/utils/payment.utils';
 import { loadLogoDataUrl } from '../../core/utils/logo.utils';
 
 @Component({
@@ -91,6 +91,7 @@ import { loadLogoDataUrl } from '../../core/utils/logo.utils';
                   </button>
                 </div>
               </div>
+              <p class="pdf-hint">El PDF del grupo muestra la misma cuota para todos y no marca quién está liberado.</p>
 
               <div class="table-wrap">
                 <table>
@@ -173,6 +174,7 @@ import { loadLogoDataUrl } from '../../core/utils/logo.utils';
                         @for (status of row.installments; track $index) {
                           <td
                             [class.paid]="status === 'Pagó'"
+                            [class.partial]="status === 'Parcial'"
                             [class.unpaid]="status === 'No pagó'"
                             [class.exempt]="status === 'Liberado'">{{ status }}</td>
                         }
@@ -191,7 +193,7 @@ import { loadLogoDataUrl } from '../../core/utils/logo.utils';
         <mat-card class="section">
           <mat-card-header>
             <mat-card-title>Morosos / cuotas pendientes ({{ pending.length }})</mat-card-title>
-            <mat-card-subtitle>Quién todavía no pagó cada cuota</mat-card-subtitle>
+            <mat-card-subtitle>Saldo pendiente por cuota (incluye pagos parciales)</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <div class="actions pending-actions">
@@ -219,7 +221,7 @@ import { loadLogoDataUrl } from '../../core/utils/logo.utils';
                   <td mat-cell *matCellDef="let r">{{ r.installment }}</td>
                 </ng-container>
                 <ng-container matColumnDef="amount">
-                  <th mat-header-cell *matHeaderCellDef>Monto</th>
+                  <th mat-header-cell *matHeaderCellDef>Saldo</th>
                   <td mat-cell *matCellDef="let r">{{ r.amount | currency:'ARS':'symbol-narrow':'1.0-0' }}</td>
                 </ng-container>
                 <tr mat-header-row *matHeaderRowDef="pendingColumns"></tr>
@@ -261,9 +263,11 @@ import { loadLogoDataUrl } from '../../core/utils/logo.utils';
     th { background: #f5f5f5; font-weight: 600; }
     .totals td { font-weight: 600; background: #fafafa; }
     .paid { background: #e8f5e9; color: #2e7d32; font-weight: 600; text-align: center; }
+    .partial { background: #fff3e0; color: #ef6c00; font-weight: 600; text-align: center; }
     .unpaid { background: #ffebee; color: #c62828; font-weight: 600; text-align: center; }
     .exempt { background: #fff8e1; color: #f57f17; font-weight: 600; text-align: center; }
     .summary { margin: 0; color: #555; }
+    .pdf-hint { margin: 0 0 12px; font-size: 13px; color: #666; }
     .mat-table { width: 100%; }
   `]
 })
@@ -411,19 +415,16 @@ export class ReportsComponent implements OnInit {
       'Enviar este PDF al grupo de WhatsApp de los jugadores'
     ]);
 
-    const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro', 'Total'];
-    const body = this.schedule.map(row => [
-      row.exempt ? `${row.player} (Liberado)` : `${row.player}${this.exemptionSuffix(row.exemption)}`,
-      ...row.installments.map(amount => row.exempt ? 'Liberado' : formatMoney(amount)),
-      formatMoney(row.insurance),
-      formatMoney(row.total)
-    ]);
-    body.push([
-      'Total',
-      ...this.installmentTotals.map(formatMoney),
-      formatMoney(this.insuranceTotal),
-      formatMoney(this.grandTotal)
-    ]);
+    const fullCuota = installmentForPayers(tournament, payingUnits(this.players));
+    const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro'];
+    const body = this.schedule.map(row => {
+      const count = row.installments.length;
+      return [
+        row.player,
+        ...Array.from({ length: count }, () => formatMoney(fullCuota)),
+        formatMoney(row.insurance)
+      ];
+    });
 
     autoTable(doc, {
       startY,
@@ -465,14 +466,22 @@ export class ReportsComponent implements OnInit {
     const teamName = this.team?.name ?? 'FAES';
     const today = new Date().toLocaleDateString('es-AR');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const publicRows = this.statusRows.map(row => ({
+      ...row,
+      installments: row.installments.map(status => (status === 'Liberado' ? 'Pagó' : status)),
+      insurance: row.insurance === 'Liberado' ? 'Pagó' : row.insurance
+    }));
+    const upToDate = publicRows.filter(r => r.pendingCount === 0).length;
+    const withDebt = publicRows.filter(r => r.pendingCount > 0).length;
+
     const startY = await this.addPdfHeader(doc, `${teamName} — Estado de pagos`, [
       `${tournament.name} (${tournament.type} ${tournament.year}) — ${today}`,
-      `Al día: ${this.playersUpToDate}   ·   Con deudas: ${this.playersWithDebt}`
+      `Al día: ${upToDate}   ·   Con deudas: ${withDebt}`
     ]);
 
     const head = ['Jugadores', ...this.scheduleHeaders.map(h => h.replace('\n', ' — ')), 'Seguro'];
-    const body = this.statusRows.map(row => [
-      `${row.player}${this.exemptionSuffix(row.exemption)}`,
+    const body = publicRows.map(row => [
+      row.player,
       ...row.installments,
       row.insurance
     ]);
@@ -491,9 +500,13 @@ export class ReportsComponent implements OnInit {
           data.cell.styles.fillColor = [232, 245, 233];
           data.cell.styles.textColor = [46, 125, 50];
         }
-        if (value === 'Liberado') {
-          data.cell.styles.fillColor = [255, 248, 225];
-          data.cell.styles.textColor = [245, 127, 23];
+        if (value === 'Parcial') {
+          data.cell.styles.fillColor = [255, 243, 224];
+          data.cell.styles.textColor = [239, 108, 0];
+        }
+        if (value === 'No pagó') {
+          data.cell.styles.fillColor = [255, 235, 238];
+          data.cell.styles.textColor = [198, 40, 40];
         }
       }
     });
@@ -524,7 +537,7 @@ export class ReportsComponent implements OnInit {
     const startY = await this.addPdfHeader(doc, `${this.team?.name ?? 'FAES'} — Cuotas pendientes`, []);
     autoTable(doc, {
       startY,
-      head: [['Jugador', 'Torneo', 'Cuota', 'Monto']],
+      head: [['Jugador', 'Torneo', 'Cuota', 'Saldo']],
       body: this.pending.map(r => [r.player, r.tournament, String(r.installment), formatMoney(r.amount)])
     });
     doc.save('faes-pagos-pendientes.pdf');
@@ -535,7 +548,7 @@ export class ReportsComponent implements OnInit {
       Jugador: r.player,
       Torneo: r.tournament,
       Cuota: r.installment,
-      Monto: r.amount
+      Saldo: r.amount
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();

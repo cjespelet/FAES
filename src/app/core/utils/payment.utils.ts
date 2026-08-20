@@ -1,5 +1,5 @@
 import { PaymentExemption, Player } from '../models/player.model';
-import { Tournament } from '../models/tournament.model';
+import { Tournament, TournamentPayment } from '../models/tournament.model';
 
 export function paymentExemption(player: Pick<Player, 'paymentExemption' | 'paymentExempt'>): PaymentExemption {
   if (player.paymentExemption === 'half' || player.paymentExemption === 'full' || player.paymentExemption === 'none') {
@@ -52,4 +52,48 @@ export function exemptionLabel(exemption: PaymentExemption): string {
   if (exemption === 'full') return 'Liberado';
   if (exemption === 'half') return 'Liberado 50%';
   return '';
+}
+
+export function installmentKey(playerId: string, tournamentId: string, installmentNumber: number): string {
+  return `${playerId}-${tournamentId}-${installmentNumber}`;
+}
+
+export function paidByInstallment(payments: TournamentPayment[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const payment of payments) {
+    const key = installmentKey(payment.playerId, payment.tournamentId, payment.installmentNumber);
+    totals.set(key, (totals.get(key) ?? 0) + (Number(payment.amount) || 0));
+  }
+  return totals;
+}
+
+export type InstallmentPayState = 'paid' | 'partial' | 'unpaid';
+
+export function installmentPayState(paid: number, due: number): InstallmentPayState {
+  const tolerance = 1;
+  if (due <= tolerance) return 'paid';
+  if (paid + tolerance >= due) return 'paid';
+  if (paid <= 0) return 'unpaid';
+  return 'partial';
+}
+
+export function remainingAmount(due: number, paid: number): number {
+  return Math.max(0, Math.round((due - paid) * 100) / 100);
+}
+
+export function paidTowardInstallment(
+  payments: TournamentPayment[],
+  playerId: string,
+  tournamentId: string,
+  installmentNumber: number,
+  excludePaymentId?: string
+): number {
+  return payments
+    .filter(p =>
+      p.playerId === playerId &&
+      p.tournamentId === tournamentId &&
+      p.installmentNumber === installmentNumber &&
+      p.id !== excludePaymentId
+    )
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 }

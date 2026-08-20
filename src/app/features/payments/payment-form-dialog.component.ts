@@ -13,12 +13,21 @@ import { TournamentPayment } from '../../core/models/tournament.model';
 import { Player } from '../../core/models/player.model';
 import { Tournament } from '../../core/models/tournament.model';
 import { toDate } from '../../core/utils/date.utils';
-import { installmentForPayers, installmentForPlayer, payingPlayers, payingUnits, paymentExemption } from '../../core/utils/payment.utils';
+import {
+  installmentForPayers,
+  installmentForPlayer,
+  paidTowardInstallment,
+  payingPlayers,
+  payingUnits,
+  paymentExemption,
+  remainingAmount
+} from '../../core/utils/payment.utils';
 
 export interface PaymentFormData {
   payment?: TournamentPayment;
   players: Player[];
   tournaments: Tournament[];
+  payments?: TournamentPayment[];
 }
 
 @Component({
@@ -72,6 +81,9 @@ export interface PaymentFormData {
             <input matInput type="number" formControlName="amount" />
           </mat-form-field>
         </div>
+        @if (balanceHint) {
+          <p class="balance" [class.settled]="balanceSettled">{{ balanceHint }}</p>
+        }
 
         <mat-form-field appearance="outline">
           <mat-label>Método de pago</mat-label>
@@ -104,6 +116,8 @@ export interface PaymentFormData {
   styles: [`
     .form { display: flex; flex-direction: column; gap: 8px; min-width: 400px; padding-top: 8px; }
     .row { display: flex; gap: 12px; mat-form-field { flex: 1; } }
+    .balance { margin: -4px 0 8px; font-size: 13px; color: #555; }
+    .balance.settled { color: #2e7d32; font-weight: 600; }
   `]
 })
 export class PaymentFormDialogComponent implements OnInit {
@@ -113,6 +127,8 @@ export class PaymentFormDialogComponent implements OnInit {
 
   isEdit = !!this.data.payment;
   installmentOptions: number[] = [1, 2, 3];
+  balanceHint = '';
+  balanceSettled = false;
 
   get payablePlayers(): Player[] {
     const payers = payingPlayers(this.data.players);
@@ -127,10 +143,10 @@ export class PaymentFormDialogComponent implements OnInit {
   paymentExemption = paymentExemption;
 
   form = this.fb.group({
-    tournamentId: [this.data.payment?.tournamentId ?? '', Validators.required],
-    playerId: [this.data.payment?.playerId ?? '', Validators.required],
+    tournamentId: [this.data.payment?.tournamentId ?? this.data.tournaments[0]?.id ?? '', Validators.required],
+    playerId: [this.data.payment?.playerId ?? payingPlayers(this.data.players)[0]?.id ?? '', Validators.required],
     installmentNumber: [this.data.payment?.installmentNumber ?? 1, Validators.required],
-    amount: [this.data.payment?.amount ?? 0, [Validators.required, Validators.min(1)]],
+    amount: [this.data.payment?.amount ?? null as number | null, [Validators.required, Validators.min(0.01)]],
     paymentMethod: [this.data.payment?.paymentMethod ?? 'Efectivo', Validators.required],
     paymentDate: [
       this.data.payment ? toDate(this.data.payment.paymentDate) : new Date(),
@@ -145,6 +161,7 @@ export class PaymentFormDialogComponent implements OnInit {
       this.syncAmount();
     });
     this.form.get('playerId')?.valueChanges.subscribe(() => this.syncAmount());
+    this.form.get('installmentNumber')?.valueChanges.subscribe(() => this.syncAmount());
     this.updateInstallments(this.form.get('tournamentId')?.value);
     this.syncAmount();
   }
@@ -157,14 +174,59 @@ export class PaymentFormDialogComponent implements OnInit {
   }
 
   private syncAmount(): void {
+    this.updateBalanceHint();
     if (this.isEdit) return;
+    const remaining = this.currentRemaining();
+    if (remaining == null || remaining <= 0) return;
+    this.form.patchValue({ amount: remaining }, { emitEvent: false });
+  }
+
+  private updateBalanceHint(): void {
+    const due = this.currentDue();
+    const remaining = this.currentRemaining();
+    if (due == null || remaining == null) {
+      this.balanceHint = '';
+      this.balanceSettled = false;
+      return;
+    }
+    const paid = Math.round((due - remaining) * 100) / 100;
+    this.balanceSettled = remaining <= 0;
+    this.balanceHint = this.balanceSettled
+      ? `Esta cuota ya está saldada (${this.formatMoney(due)}).`
+      : `Cuota ${this.formatMoney(due)} · Pagado ${this.formatMoney(paid)} · Resta ${this.formatMoney(remaining)}`;
+  }
+
+  private currentDue(): number | null {
     const tournament = this.data.tournaments.find(t => t.id === this.form.get('tournamentId')?.value);
-    if (!tournament) return;
+    if (!tournament) return null;
     const player = this.data.players.find(p => p.id === this.form.get('playerId')?.value);
-    const amount = player
+    return player
       ? installmentForPlayer(tournament, this.data.players, player)
       : installmentForPayers(tournament, payingUnits(this.data.players));
-    this.form.patchValue({ amount });
+  }
+
+  private currentRemaining(): number | null {
+    const due = this.currentDue();
+    const tournamentId = this.form.get('tournamentId')?.value;
+    const playerId = this.form.get('playerId')?.value;
+    const installmentNumber = Number(this.form.get('installmentNumber')?.value);
+    if (due == null || !tournamentId || !playerId || !installmentNumber) return null;
+    const paid = paidTowardInstallment(
+      this.data.payments ?? [],
+      playerId,
+      tournamentId,
+      installmentNumber,
+      this.data.payment?.id
+    );
+    return remainingAmount(due, paid);
+  }
+
+  private formatMoney(value: number): string {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      maximumFractionDigits: 2
+    }).format(value);
   }
 
   save(): void {

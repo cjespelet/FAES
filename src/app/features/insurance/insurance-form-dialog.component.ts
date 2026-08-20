@@ -120,7 +120,7 @@ export class InsuranceFormDialogComponent implements OnInit {
   form = this.fb.group({
     playerId: [this.data.insurance?.playerId ?? '', Validators.required],
     period: [this.data.insurance?.period ?? new Date().getFullYear().toString(), Validators.required],
-    amount: [this.data.insurance?.amount ?? 0, [Validators.required, Validators.min(1)]],
+    amount: [this.data.insurance?.amount ?? 15400, [Validators.required, Validators.min(1)]],
     startDate: [
       this.data.insurance ? toDate(this.data.insurance.startDate) : new Date(),
       Validators.required

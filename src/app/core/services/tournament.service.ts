@@ -82,7 +82,7 @@ export class TournamentService {
 
   getAllPayments(): Observable<TournamentPayment[]> {
     const collectionRef = collection(this.firestore, this.getPaymentsPath());
-    return listenCollection<TournamentPayment>(query(collectionRef, orderBy('paymentDate', 'desc'))).pipe(
+    return listenCollection<TournamentPayment>(query(collectionRef)).pipe(
       map(items => [...items].sort(
         (a, b) => toDate(b.paymentDate).getTime() - toDate(a.paymentDate).getTime()
       ))
@@ -103,11 +103,11 @@ export class TournamentService {
 
   addPayment(payment: Omit<TournamentPayment, 'id' | 'createdAt' | 'updatedAt'>): Observable<string> {
     const collectionRef = collection(this.firestore, this.getPaymentsPath());
-    const newPayment = {
+    const newPayment = omitUndefined({
       ...payment,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
-    };
+    });
     return from(addDoc(collectionRef, newPayment)).pipe(
       map(docRef => docRef.id)
     );
@@ -115,10 +115,10 @@ export class TournamentService {
 
   updatePayment(id: string, payment: Partial<TournamentPayment>): Observable<void> {
     const docRef = doc(this.firestore, `${this.getPaymentsPath()}/${id}`);
-    return from(updateDoc(docRef, {
+    return from(updateDoc(docRef, omitUndefined({
       ...payment,
       updatedAt: Timestamp.now()
-    }));
+    })));
   }
 
   deletePayment(id: string): Observable<void> {

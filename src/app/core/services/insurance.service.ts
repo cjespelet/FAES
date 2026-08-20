@@ -15,7 +15,7 @@ import { Observable, from } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Insurance } from '../models/insurance.model';
 import { AuthService } from './auth.service';
-import { toDate } from '../utils/date.utils';
+import { omitUndefined, toDate } from '../utils/date.utils';
 import { listenCollection } from '../utils/firestore.utils';
 
 @Injectable({
@@ -57,11 +57,11 @@ export class InsuranceService {
 
   addInsurance(insurance: Omit<Insurance, 'id' | 'createdAt' | 'updatedAt'>): Observable<string> {
     const collectionRef = collection(this.firestore, this.getCollectionPath());
-    const newInsurance = {
+    const newInsurance = omitUndefined({
       ...insurance,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
-    };
+    });
     return from(addDoc(collectionRef, newInsurance)).pipe(
       map(docRef => docRef.id)
     );
@@ -69,10 +69,10 @@ export class InsuranceService {
 
   updateInsurance(id: string, insurance: Partial<Insurance>): Observable<void> {
     const docRef = doc(this.firestore, `${this.getCollectionPath()}/${id}`);
-    return from(updateDoc(docRef, {
+    return from(updateDoc(docRef, omitUndefined({
       ...insurance,
       updatedAt: Timestamp.now()
-    }));
+    })));
   }
 
   deleteInsurance(id: string): Observable<void> {

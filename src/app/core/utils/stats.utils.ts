@@ -5,11 +5,15 @@ import { getInstallmentDueDates, toDate } from './date.utils';
 import {
   installmentForPayers,
   installmentForPlayer,
+  installmentKey,
+  installmentPayState,
   isPaymentExempt,
+  paidByInstallment,
   payingPlayers,
   payingUnits,
   paymentExemption,
-  paymentWeight
+  paymentWeight,
+  remainingAmount
 } from './payment.utils';
 
 export function countPendingPayments(
@@ -18,14 +22,14 @@ export function countPendingPayments(
   payments: TournamentPayment[]
 ): number {
   const payers = payingPlayers(players);
-  const paidSet = new Set(
-    payments.map(p => `${p.playerId}-${p.tournamentId}-${p.installmentNumber}`)
-  );
+  const paidMap = paidByInstallment(payments);
   let count = 0;
   for (const tournament of tournaments) {
     for (const player of payers) {
+      const due = installmentForPlayer(tournament, players, player);
       for (let i = 1; i <= (Number(tournament.installments) || 0); i++) {
-        if (!paidSet.has(`${player.id}-${tournament.id}-${i}`)) {
+        const paid = paidMap.get(installmentKey(player.id, tournament.id, i)) ?? 0;
+        if (installmentPayState(paid, due) !== 'paid') {
           count++;
         }
       }
@@ -63,21 +67,21 @@ export function buildPendingPaymentRows(
   payments: TournamentPayment[]
 ): PendingPaymentRow[] {
   const payers = payingPlayers(players);
-  const paidSet = new Set(
-    payments.map(p => `${p.playerId}-${p.tournamentId}-${p.installmentNumber}`)
-  );
+  const paidMap = paidByInstallment(payments);
   const rows: PendingPaymentRow[] = [];
 
   for (const tournament of tournaments) {
     for (const player of payers) {
-      const amount = installmentForPlayer(tournament, players, player);
+      const due = installmentForPlayer(tournament, players, player);
       for (let i = 1; i <= (Number(tournament.installments) || 0); i++) {
-        if (!paidSet.has(`${player.id}-${tournament.id}-${i}`)) {
+        const paid = paidMap.get(installmentKey(player.id, tournament.id, i)) ?? 0;
+        const remaining = remainingAmount(due, paid);
+        if (installmentPayState(paid, due) !== 'paid') {
           rows.push({
             player: player.name,
             tournament: tournament.name,
             installment: i,
-            amount
+            amount: remaining
           });
         }
       }
@@ -140,7 +144,7 @@ export function initialScheduleHeaders(tournament: Tournament): string[] {
   return dates.map((date, i) => `Cuota ${i + 1}\n${date.toLocaleDateString('es-AR')}`);
 }
 
-export type PayStatus = 'Pagó' | 'No pagó' | 'Liberado' | '—';
+export type PayStatus = 'Pagó' | 'Parcial' | 'No pagó' | 'Liberado' | '—';
 
 export interface PaymentStatusRow {
   player: string;
@@ -164,22 +168,23 @@ export function buildPaymentStatus(
   payments: TournamentPayment[],
   insurances: Insurance[]
 ): PaymentStatusRow[] {
-  const paidSet = new Set(
-    payments
-      .filter(p => p.tournamentId === tournament.id)
-      .map(p => `${p.playerId}-${p.installmentNumber}`)
-  );
+  const paidMap = paidByInstallment(payments.filter(p => p.tournamentId === tournament.id));
 
   return [...players]
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
     .map(player => {
       const exemption = paymentExemption(player);
       const exempt = exemption === 'full';
+      const due = installmentForPlayer(tournament, players, player);
       const installments: PayStatus[] = Array.from(
         { length: Number(tournament.installments) || 0 },
         (_, i) => {
           if (exempt) return 'Liberado';
-          return paidSet.has(`${player.id}-${i + 1}`) ? 'Pagó' : 'No pagó';
+          const paid = paidMap.get(installmentKey(player.id, tournament.id, i + 1)) ?? 0;
+          const state = installmentPayState(paid, due);
+          if (state === 'paid') return 'Pagó';
+          if (state === 'partial') return 'Parcial';
+          return 'No pagó';
         }
       );
       const insurance = insuranceStatusForPlayer(player.id, insurances);
@@ -189,7 +194,7 @@ export function buildPaymentStatus(
         installments,
         insurance,
         paidCount: statuses.filter(s => s === 'Pagó').length,
-        pendingCount: statuses.filter(s => s === 'No pagó').length,
+        pendingCount: statuses.filter(s => s === 'No pagó' || s === 'Parcial').length,
         exempt,
         exemption
       };
